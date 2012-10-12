@@ -9,7 +9,11 @@ typedef int Tid;
 
 
 typedef struct ThrdCtlBlk{
-  /* ... Fill this in ... */
+    ucontext_t *my_context;     /* Pointer to ucontext object */
+    Tid my_tid;                         /* hold the thread id */
+    /*Now shifting responsibility to the linked-list */
+/*    struct ThrdCtBlk *my_next; */
+/*    struct ThrdCtBlk *my_prev; */
 } ThrdCtlBlk;
 
 
