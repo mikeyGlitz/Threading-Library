@@ -2,6 +2,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+/*
+ * =================================
+ *              Explanation by Joe
+ * =================================
+ * This is an individual program that runs on itself
+ * Every program run creates a process with at least one thread.
+ * 
+ * The program runs, creates a thread and then proceeds to take a
+ * snapshot of the thread, called ucontext.
+ * 
+ * The goal is to dig through ucontext and extract information to
+ * print out
+ */
+
 /* We want the extra information from these definitions */
 #ifndef __USE_GNU
 #define __USE_GNU
@@ -10,7 +24,7 @@
 
 #define SOL 99
 
-unsigned int probeUCStack(char *string);
+unsigned int probeUCStack(ucontext_t nContext);
 
 int main(int argc, char **argv)
 {
@@ -27,10 +41,10 @@ int main(int argc, char **argv)
   err = getcontext(&mycontext);
   assert(!err);
 
-  printf("A ucontext_t is %d bytes\n", -999);
-  assert(0); // TBD: Fill in ucontext size above. Hint: use sizeof().
+  printf("A ucontext_t is %d bytes\n", sizeof(ucontext_t));
+  assert(sizeof(ucontext_t) == 348); // TBD: Fill in ucontext size above. Hint: use sizeof().
 
-  unsigned int anotherSample = probeUCStack("Dummy argument.");
+  unsigned int anotherSample = probeUCStack(mycontext);
 
   /* 
    * Now, look inside of the ucontext you just saved.
@@ -97,8 +111,9 @@ int main(int argc, char **argv)
  * uc_stack.ss_sp saved in main().
  */
 unsigned int 
-probeUCStack(char *str)
+probeUCStack(ucontext_t nContext)
 {
-  assert(0); /* Write code for this function */
-  return 0xFFFFFFFF;
+    int error = getcontext(&nContext);  //Either 0 or -1
+  assert(!error); /* Write code for this function */
+  return (unsigned int)nContext.uc_stack.ss_sp;
 }

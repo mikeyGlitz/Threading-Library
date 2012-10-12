@@ -2,7 +2,7 @@
 
 
 CC	:= gcc 
-CFLAGS := -g -Wall -Werror $(LABDEFS)
+CFLAGS := -g -Wall -m32 $(LABDEFS)
 
 TARGETS := doTest doTest2 showHandler libULT.a alarmHelper parseUcontext
 
