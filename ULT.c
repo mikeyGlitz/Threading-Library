@@ -5,13 +5,12 @@
 #define __USE_GNU
 #endif /* __USE_GNU */
 #include <ucontext.h>
-#include "Queue.h"
 #include "ULT.h"
 
 
 /* Create current thread and queue items */
 static ThrdCtlBlk *currentTCB = NULL;
-static Queue *ready = NULL;
+struct listNode *head = NULL;
 /* So far they're just empty pointers */
 
 /*
@@ -19,8 +18,9 @@ static Queue *ready = NULL;
  */
 void init(){
     /* Create a queue and a current Thread control block*/
-    ready = malloc(sizeof(Queue));
-    initializeQueue(ready);
+    head = malloc(sizeof(listNode));
+    head->previous = NULL;
+    head->next= NULL;
     
     currentTCB = malloc(sizeof(ThrdCtlBlk));
     currentTCB->my_context = malloc(sizeof(ucontext_t));

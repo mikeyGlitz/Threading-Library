@@ -1,12 +1,20 @@
 #ifndef _ULT_H_
 #define _ULT_H_
 #include <ucontext.h>
-#include "Queue.h"
 #include <stdlib.h>
 
 typedef int Tid;
 #define ULT_MAX_THREADS 1024
 #define ULT_MIN_STACK 32768
+
+/*
+ * List node
+ */
+typedef struct listNode{
+    struct ThrdCtlBlk *contents;
+    struct listNode *previous;
+    struct listNode *next;
+}listNode;
 
 /*
  * Structure to represent the thread control block
