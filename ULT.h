@@ -1,21 +1,23 @@
 #ifndef _ULT_H_
 #define _ULT_H_
 #include <ucontext.h>
+#include "Queue.h"
+#include <stdlib.h>
 
 typedef int Tid;
 #define ULT_MAX_THREADS 1024
 #define ULT_MIN_STACK 32768
 
-
-
+/*
+ * Structure to represent the thread control block
+ */
 typedef struct ThrdCtlBlk{
     ucontext_t *my_context;     /* Pointer to ucontext object */
     Tid my_tid;                         /* hold the thread id */
     /*Now shifting responsibility to the linked-list */
-/*    struct ThrdCtBlk *my_next; */
-/*    struct ThrdCtBlk *my_prev; */
+//    struct ThrdCtBlk *my_next;
+//    struct ThrdCtBlk *my_prev;
 } ThrdCtlBlk;
-
 
 /*
  * Tids between 0 and ULT_MAX_THREADS-1 may
@@ -36,15 +38,12 @@ static inline int ULT_isOKRet(Tid ret){
   return (ret >= 0 ? 1 : 0);
 }
 
+void init();    /* initialization function */
+
 Tid ULT_CreateThread(void (*fn)(void *), void *parg);
+Tid ULT_SWITCH(Tid tid);
 Tid ULT_Yield(Tid tid);
 Tid ULT_DestroyThread(Tid tid);
-
-
- 
-
-
-
 
 #endif
 
