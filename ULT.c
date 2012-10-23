@@ -11,6 +11,7 @@
 /* Create current thread and queue items */
 static ThrdCtlBlk *currentTCB = NULL;
 struct listNode *head = NULL;
+static int initialized = 0;
 /* So far they're just empty pointers */
 
 /*
@@ -19,12 +20,15 @@ struct listNode *head = NULL;
 void init(){
     /* Create a queue and a current Thread control block*/
     head = malloc(sizeof(listNode));
-    head->previous = NULL;
-    head->next= NULL;
+    head->contents = NULL; /* The contens of head always starts out as nothing */
+    head->previous = head;
+    head->next= head;
     
     currentTCB = malloc(sizeof(ThrdCtlBlk));
     currentTCB->my_context = malloc(sizeof(ucontext_t));
     currentTCB->my_tid = 0;
+    
+    initialized = 1;
 }
 
 /**
@@ -36,6 +40,35 @@ Tid ULT_CreateThread(void (*fn)(void *), void *parg)
 {
     assert(0); /* TBD */
     return ULT_FAILED;
+}
+
+Tid ULT_SWITCH(Tid tid){
+    /* capture the current context */
+/*
+    int curContext = getcontext(currentTCB->my_context);
+*/
+/*
+    if(curContext != 0){
+        printf("Could not properly capture thread context state\n");
+    }
+*/
+    /* Iterate through the loop until we reach the node we're looking for*/
+    listNode *currentNode = head;
+    while(head->contents->my_tid != tid){
+        currentNode = currentNode->next;
+        if(currentNode == head)
+            return ULT_NONE;
+    }
+    /* Perform the swap */
+    assert(tid == head->contents->my_tid);
+    currentTCB->my_context = head->contents->my_context;
+    currentTCB->my_tid = head->contents->my_tid;
+    
+    head->previous->next = head->next;
+    free(head->contents);
+    free(head);
+    
+    return 1;
 }
 
 /**
@@ -51,10 +84,32 @@ Tid ULT_CreateThread(void (*fn)(void *), void *parg)
  */
 Tid ULT_Yield(Tid wantTid)
 {
-    if(wantTid == ULT_SELF)
+    /* Check to see if initialized */
+    if(!initialized){
+        init(); /* Initialize thread and queue */
+    }
+    /* Get real tids */
+    if(wantTid == ULT_SELF){
         wantTid = currentTCB->my_tid;
-    assert(0);
-    return ULT_FAILED;
+    }
+    else if(wantTid == ULT_ANY){
+        /* if the queue is empty return ULT_None */
+        if(head == NULL){
+            return ULT_NONE;
+        }
+        else{
+            /* queue contains something set wantTid to the tid of head's contents */
+            wantTid = head->contents->my_tid;
+        }
+    }
+    /* Check to see if wantTid is referencing an invalid tid */
+    else if((wantTid < -2) || (wantTid > ULT_MAX_THREADS)){
+        return ULT_INVALID;
+    }
+    /* head is current */
+    head->contents = currentTCB;
+    /* Perform the swap operation */
+    return ULT_SWITCH(wantTid);
 }
 
 /**
