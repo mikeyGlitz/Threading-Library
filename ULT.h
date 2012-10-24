@@ -7,24 +7,21 @@ typedef int Tid;
 #define ULT_MAX_THREADS 1024
 #define ULT_MIN_STACK 32768
 
-/*
- * List node
- */
-typedef struct listNode{
+/* List structures */
+struct listNode{
     struct ThrdCtlBlk *contents;
     struct listNode *previous;
     struct listNode *next;
-}listNode;
+};
+struct linkedlist{
+    int size; 
+    struct listNode * headNode;
+};
 
-/*
- * Structure to represent the thread control block
- */
+/* Thread Control Block structures */
 typedef struct ThrdCtlBlk{
-    ucontext_t *my_context;     /* Pointer to ucontext object */
-    Tid my_tid;                         /* hold the thread id */
-    /*Now shifting responsibility to the linked-list */
-//    struct ThrdCtBlk *my_next;
-//    struct ThrdCtBlk *my_prev;
+    ucontext_t *context;     /* Pointer to ucontext object */
+    Tid tid;                         /* hold the thread id */
 } ThrdCtlBlk;
 
 /*
@@ -49,9 +46,20 @@ static inline int ULT_isOKRet(Tid ret){
 void init();    /* initialization function */
 
 Tid ULT_CreateThread(void (*fn)(void *), void *parg);
-Tid ULT_SWITCH(Tid tid);
+Tid ULT_SWITCH(Tid wantTid);
 Tid ULT_Yield(Tid tid);
 Tid ULT_DestroyThread(Tid tid);
+
+/* List Functions */
+struct linkedlist *init_list();
+struct ThrdCtlBlk *peek(struct linkedlist *list);
+void addNode(struct linkedlist *list, struct ThrdCtlBlk *newNode);
+struct ThrdCtlBlk *removeNode(struct linkedlist *list, int tid);
+struct ThrdCtlBlk *pop(struct linkedlist *list);
+void freeGlobals();
+void freeList(struct linkedlist *list);
+void freeTCB(ThrdCtlBlk *block);
+void freeAll();
 
 #endif
 

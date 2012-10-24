@@ -38,18 +38,32 @@ void basicThreadTests()
    * Initial thread yields
    */
   ret = ULT_Yield(ULT_SELF);
+  /* debug statement */
+  /* printf("Ret returns from Yield(SELF): %d\n", ret); */
   assert(ULT_isOKRet(ret));
   printf("Initial thread returns from Yield(SELF)\n");
+
   ret = ULT_Yield(0); /* See ULT.h -- initial thread must be Tid 0 */
+  /* debug statement */
+  /* printf("Ret returns from Yield(0): %d\n", ret); */
   assert(ULT_isOKRet(ret));
   printf("Initial thread returns from Yield(0)\n");
+  
   ret = ULT_Yield(ULT_ANY);
+  /* debug statement */
+  /* printf("Ret returns from Yield(ANY): %d\n", ret); */
   assert(ret == ULT_NONE);
   printf("Initial thread returns from Yield(ANY)\n");
+  
   ret = ULT_Yield(0xDEADBEEF);
+  /* debug statement */
+  /* printf("Ret returns from Yield(DEADBEEF): %d\n", ret); */
   assert(ret == ULT_INVALID);
   printf("Initial thread returns from Yield(INVALID)\n");
+  
   ret = ULT_Yield(16);
+  /* debug statement */
+  /* printf("Ret returns from Yield(16): %d\n", ret); */
   assert(ret == ULT_INVALID);
   printf("Initial thread returns from Yield(INVALID2)\n");
   
