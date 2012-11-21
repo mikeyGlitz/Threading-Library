@@ -17,6 +17,10 @@ static ThrdCtlBlk *nextTCB = NULL;
 struct linkedlist *list;
 static int threadCount = 0;
 static int initialized = 0;
+static int nex = 0;
+static int tidsFull = 0;
+//static int tidCounter = 0; // Use instead of assignTid
+static int destroy = 0;
 /* So far they're just empty pointers */
 
 /*
@@ -61,10 +65,20 @@ void append(struct linkedlist *list, ThrdCtlBlk *newNode)
         struct listNode *node = (struct listNode *)malloc(sizeof(struct listNode));
         struct listNode *head = list->headNode; 
         node->contents = newNode;
+        /* No FOR loops! */
+        //for(int i=1; i < list->size; i++)
+        int i=1;
+        while(i < list->size)
+        { head = head->next; i++; }
+        head->next = node;
+        node->previous = head;
+        node->next = NULL;
+        /*
         head->previous = node;
         node->previous = NULL;
         node->next = head;
         list->headNode = node;
+        */
         list->size = list->size + 1;
         return;
     }
@@ -103,7 +117,9 @@ ThrdCtlBlk *removeNode(struct linkedlist *list, Tid tid){
             /* Tying up Loose Ends */
             if(i < list->size-1){
                 node->next = nextNode->next;
-                nextNode->next->previous = nextNode->previous;
+                /* Check if at end of list or not STUPID! */
+                if(nextNode->next != NULL)
+                { nextNode->next->previous = nextNode->previous; }
             }
             result = nextNode->contents;
             free(nextNode);
@@ -118,7 +134,8 @@ ThrdCtlBlk *removeNode(struct linkedlist *list, Tid tid){
     return result;
 }
 
-/* Popin' LIFO style */
+/* Popin' LIFO style FAIL! */
+/* Popin' FIFO style! */
 struct ThrdCtlBlk *pop(struct linkedlist *list){
     struct listNode *head = list->headNode;
     ThrdCtlBlk *result;
@@ -130,8 +147,11 @@ struct ThrdCtlBlk *pop(struct linkedlist *list){
         return result;
     }
     list->headNode = head->next;
+    head->next->previous = NULL;
+    head->next = NULL;
     list->size = list->size - 1;
     free(head);
+    head = NULL;
     return result;
 }
 
@@ -191,8 +211,82 @@ void freeAll(){
  */
 Tid ULT_CreateThread(void (*fn)(void *), void *parg)
 {
-    assert(0); /* TBD */
-    return ULT_FAILED;
+    /* Initialize Threading, will do nothing if already done */
+    if(!initialized){ init(); }
+
+    /* Check to see if any threads available */
+    if(threadCount >= ULT_MAX_THREADS)
+    { return ULT_NOMORE; }
+    
+    /* Initialize new thread */
+    ThrdCtlBlk *newThread = (ThrdCtlBlk *)malloc(sizeof(ThrdCtlBlk));
+    newThread->context = (ucontext_t *)malloc(sizeof(ucontext_t));
+    
+     void * stack = (stack_t *)malloc(ULT_MIN_STACK * sizeof(int));
+    if(!stack) { return ULT_NOMEMORY;}
+
+    /*  To top, -4, Push Parg, down4, push FN, down4, set stack pointer */
+    stack += ULT_MIN_STACK;
+    stack -= 4;
+    *(int *)stack = (unsigned int) parg;
+    stack -= 4;
+    *(int *)stack = (unsigned int) fn;
+    stack -= 4;
+
+    /* getcontext to store in newThread and open some space for stack pointer */
+    getcontext(newThread->context);
+    newThread->context->uc_stack.ss_sp = (char *)malloc(ULT_MIN_STACK);
+    newThread->context->uc_stack.ss_size = ULT_MIN_STACK;
+
+    /* MY VIRST ATTEMPT
+    newThread->context->uc_stack.ss_sp = (unsigned int *) stack;
+    newThread->sp = (unsigned int *) stack;
+    newThread->context->uc_mcontext.gregs[REG_ESP] = (unsigned int)stack;
+    // (void*)((unsigned int)new_stack + (ULT_MIN_STACK - (3 * sizeof(void*))));
+    newThread->context->uc_mcontext.gregs[REG_EIP] = (unsigned int)stub;
+     */
+    
+    /* MY SECUNDA ATTEMPT */
+    newThread->sp = malloc(ULT_MIN_STACK); //allocate memory for the stack.
+    newThread->sp += (ULT_MIN_STACK/4); //Set the stack pointer to the top of the stack
+    (newThread->sp)--; //Decrement stack pointer
+    *(newThread->sp) = (unsigned int) parg; //push the address of argument
+    (newThread->sp)--;
+    *(newThread->sp) = (unsigned int) fn; //push the address of the function
+    newThread->context->uc_mcontext.gregs[REG_EIP] = (unsigned int)stub; //We'll set the program counter to the address of stub
+    newThread->context->uc_mcontext.gregs[REG_ESP] = (unsigned int)(--newThread->sp); //Set the stack pointer register to our stack pointer
+    
+    /* MakeContext */
+    /* DON'T USE */
+    //makecontext(newThread->context, (void (*)(void))stub, 2, fn, parg);
+    /* Assign Stack Pointer and EIP instead */
+    /*
+    newThread->context->uc_mcontext.gregs[REG_EDI] = (unsigned int)fn;
+    newThread->context->uc_mcontext.gregs[REG_ESI] = (unsigned int)parg;
+    */
+        /* REFERENCE MATERIAL
+   new_tcb->stack_orig = new_tcb->sp; //original stack pointer used in order to free.
+  new_tcb->sp += (ULT_MIN_STACK/4); //Set the stack pointer to the top of the stack
+  (new_tcb->sp)--; //Decrement stack pointer
+  *(new_tcb->sp) = (unsigned int) parg; //push the address of argument
+  (new_tcb->sp)--;
+  *(new_tcb->sp) = (unsigned int) fn; //push the address of the function
+  new_tcb->uc.uc_mcontext.gregs[REG_EIP] = (unsigned int)stub; //We'll set the program counter to the address of stub
+  new_tcb->uc.uc_mcontext.gregs[REG_ESP] = (unsigned int)(--new_tcb->sp); //Set the stack pointer register to our stack pointer
+  addTCB(rl,new_tcb); //Add Thread to the readyList
+        */
+    
+    /* Assign new Tid */
+    newThread->tid = assignId();
+    if(newThread->tid < 0){ return ULT_NOMEMORY; }
+    //if(tidCounter+1 >= ULT_MAX_THREADS) { return ULT_NOMEMORY; }
+    //tidCounter++;
+    //newThread->tid = tidCounter;
+    
+    //if(newThread->tid == -1) { return ULT_NOMEMORY; }
+    append(list,newThread);
+    threadCount +=1;
+    return newThread->tid;
 }
 
 Tid ULT_SWITCH(Tid wantTid){
@@ -202,7 +296,8 @@ Tid ULT_SWITCH(Tid wantTid){
 
     /* if SELF, then just keep running */
     if(wantTid == ULT_SELF || wantTid == currentTCB->tid){
-        nextTCB = currentTCB; return currentTCB->tid;
+        //nextTCB = currentTCB;
+        return currentTCB->tid;
     }
     else if(wantTid == ULT_ANY){
         nextTCB = pop(list);
@@ -212,12 +307,14 @@ Tid ULT_SWITCH(Tid wantTid){
         nextTCB = removeNode(list, wantTid);
         if(nextTCB->tid < 0){ return ULT_INVALID; }
     }
-
+    int ret = getcontext(currentTCB->context); //save thread state (to TCB)
+    assert(!ret);
     /* Perform the swap */
     if(!(didISwitch)){
         didISwitch = 1;
         /* Double Checking */
         if(!(wantTid == ULT_SELF || currentTCB->tid == wantTid)){
+           
             append(list, currentTCB);
             currentTCB = nextTCB;
         }
@@ -256,11 +353,103 @@ Tid ULT_Yield(Tid wantTid)
  */
 Tid ULT_DestroyThread(Tid tid)
 {
-  assert(0); /* TBD */
+  init();
+  ThrdCtlBlk *destroyblk;
+  int destid;
+  /* Tid comptid; */
+
+  // If self is requested, yield to next thread, and mark self for destruction
+  if (tid == ULT_SELF || tid == currentTCB->tid){
+    destroy = 1;
+    /* comptid = currentTCB->tid; */
+    threadCount--;
+    Tid yeld = ULT_Yield(ULT_ANY);
+    //if none left, exit program
+    if (yeld == ULT_NONE) {
+        freeAll();
+        exit(0);
+     }
+  }
+
+  // If request to destroy any, pop the list and destroy resulting thread
+  else if (tid == ULT_ANY){
+    destroyblk = pop(list);
+    if (destroyblk->tid == -2){ return ULT_NONE; }
+    threadCount--;
+    destid = destroyblk->tid;
+    freeTCB(destroyblk);
+    return destid;
+  }
+
+  // Otherwise, remove requested node
+  else {
+    destroyblk = removeNode(list,tid);
+    destid = destroyblk->tid;
+    threadCount--;
+    if (destid == -1 || destid == -2){ return ULT_INVALID; }
+    freeTCB(destroyblk);
+    return tid;
+   }
+
   return ULT_FAILED;
 }
 
+void stubFn(void (*fn)(void *), void *arg)
+{
+        fn(arg);
+        ULT_DestroyThread(ULT_SELF);
+}
 
+/*
+ * Assign a Tid
+ */
+Tid assignId()
+{
+  // Decide if we should implement at 0 or 1
+  if (list->size == 0){
+    if (currentTCB->tid !=0) nex = 0;
+    else nex = 1;}
 
+  if (nex == ULT_MAX_THREADS) tidsFull = 1;
 
+  // If queue is now full, simply increment the value to be assigned
+  // otherwise, search for an unused id
+  if (!tidsFull){
+    nex++;
+    return nex-1;
+  }
+
+  else {
+   nex = 0;
+   int i;
+   for (i = 0; i< ULT_MAX_THREADS; i++){
+     if (!threadForTid(list,nex) || nex != currentTCB->tid) return nex;
+   }
+  }
+  return -1;
+
+}
+
+int threadForTid (struct linkedlist *list, Tid tid)
+{
+	if (list->size == 0) { return 0; }
+	struct listNode *currentThread = list->headNode;
+	while (currentThread)
+	{
+		if (currentThread->contents->tid == tid)
+		{ return 1; }
+		currentThread = currentThread->next;
+	}
+	return 0;
+}
+
+void stub(void (*root)(void *), void *arg)
+{
+    // thread starts here
+    Tid ret;
+    root(arg); // call root function
+    ret = ULT_DestroyThread(ULT_SELF);
+    assert(ret == ULT_NONE); // we should only get here if we are the last thread.
+    exit(0); // all threads are done, so process should exit
+}
 

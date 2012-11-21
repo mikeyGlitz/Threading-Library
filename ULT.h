@@ -21,6 +21,7 @@ struct linkedlist{
 /* Thread Control Block structures */
 typedef struct ThrdCtlBlk{
     ucontext_t *context;     /* Pointer to ucontext object */
+    unsigned int *sp; //Allocate memory and point to the stack
     Tid tid;                         /* hold the thread id */
 } ThrdCtlBlk;
 
@@ -61,6 +62,11 @@ void freeList(struct linkedlist *list);
 void freeTCB(ThrdCtlBlk *block);
 void freeAll();
 
+/* Other Functions */
+Tid assignId();
+int threadForTid (struct linkedlist *list, int tid);
+void stubFn(void (*fn)(void *), void *arg);
+void stub(void (*fn)(void *), void *arg);
 #endif
 
 
