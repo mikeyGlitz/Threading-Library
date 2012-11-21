@@ -20,6 +20,7 @@ static int initialized = 0;
 static int nex = 0;
 static int tidsFull = 0;
 //static int tidCounter = 0; // Use instead of assignTid
+int available_Tids[ULT_MAX_THREADS]; //ULT_MAX_THREADS vacant slots for Tids (0 = available, 1 = occupied)
 static int destroy = 0;
 /* So far they're just empty pointers */
 
@@ -40,6 +41,8 @@ void init(){
     currentTCB->context->uc_stack.ss_sp = (char *)malloc(ULT_MIN_STACK);
     getcontext(currentTCB->context);
     currentTCB->tid = 0;
+    
+    available_Tids[0] = 1;
 }
 
 /* Initializes the linkedlist */
@@ -213,6 +216,7 @@ Tid ULT_CreateThread(void (*fn)(void *), void *parg)
 {
     /* Initialize Threading, will do nothing if already done */
     if(!initialized){ init(); }
+    int setTid;
 
     /* Check to see if any threads available */
     if(threadCount >= ULT_MAX_THREADS)
@@ -277,11 +281,27 @@ Tid ULT_CreateThread(void (*fn)(void *), void *parg)
         */
     
     /* Assign new Tid */
-    newThread->tid = assignId();
-    if(newThread->tid < 0){ return ULT_NOMEMORY; }
+    //newThread->tid = assignId();
+    //if(newThread->tid < 0){ return ULT_NOMEMORY; }
     //if(tidCounter+1 >= ULT_MAX_THREADS) { return ULT_NOMEMORY; }
     //tidCounter++;
     //newThread->tid = tidCounter;
+     int i = 0;
+     while (i<ULT_MAX_THREADS)
+     {
+       if (available_Tids[i] == 0) // Got One!
+       { setTid = i; break; }
+       else{ i++; }
+     }
+    if(i == ULT_MAX_THREADS) // Stupid, why waste time making things you can't keep?
+    {
+      free(newThread); // Fly free new thread. You can't live here
+      return ULT_NOMORE;
+    }
+  
+    // Lock that Tid Door, and set it
+    available_Tids[i] = 1;
+    newThread->tid = setTid;
     
     //if(newThread->tid == -1) { return ULT_NOMEMORY; }
     append(list,newThread);
@@ -353,7 +373,10 @@ Tid ULT_Yield(Tid wantTid)
  */
 Tid ULT_DestroyThread(Tid tid)
 {
-  init();
+  /* Double Checking  */
+  if(!initialized){ init(); return ULT_NONE; }
+  if (list->size == 0 && tid == ULT_ANY){ return ULT_NONE; }
+  
   ThrdCtlBlk *destroyblk;
   int destid;
   /* Tid comptid; */
@@ -362,13 +385,15 @@ Tid ULT_DestroyThread(Tid tid)
   if (tid == ULT_SELF || tid == currentTCB->tid){
     destroy = 1;
     /* comptid = currentTCB->tid; */
-    threadCount--;
+    if(list->size == 0){ return ULT_NONE; }
+    threadCount--;   
     Tid yeld = ULT_Yield(ULT_ANY);
     //if none left, exit program
     if (yeld == ULT_NONE) {
         freeAll();
         exit(0);
      }
+    available_Tids[yeld] = 0; // Tid now vacant
   }
 
   // If request to destroy any, pop the list and destroy resulting thread
@@ -376,6 +401,7 @@ Tid ULT_DestroyThread(Tid tid)
     destroyblk = pop(list);
     if (destroyblk->tid == -2){ return ULT_NONE; }
     threadCount--;
+    available_Tids[destroyblk->tid] = 0; // Tid now vacant
     destid = destroyblk->tid;
     freeTCB(destroyblk);
     return destid;
@@ -386,6 +412,7 @@ Tid ULT_DestroyThread(Tid tid)
     destroyblk = removeNode(list,tid);
     destid = destroyblk->tid;
     threadCount--;
+    available_Tids[destroyblk->tid] = 0; // Tid now vacant
     if (destid == -1 || destid == -2){ return ULT_INVALID; }
     freeTCB(destroyblk);
     return tid;
