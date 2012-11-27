@@ -1,29 +1,27 @@
 #ifndef _ULT_H_
 #define _ULT_H_
 #include <ucontext.h>
-#include <stdlib.h>
 
 typedef int Tid;
 #define ULT_MAX_THREADS 1024
 #define ULT_MIN_STACK 32768
 
-/* List structures */
-struct listNode{
-    struct ThrdCtlBlk *contents;
-    struct listNode *previous;
-    struct listNode *next;
-};
-struct linkedlist{
-    int size; 
-    struct listNode * headNode;
-};
-
-/* Thread Control Block structures */
-typedef struct ThrdCtlBlk{
-    ucontext_t *context;     /* Pointer to ucontext object */
+typedef struct ThrdCtlBlk
+{
+    Tid tid;
+    ucontext_t uc; //context for the threads
     unsigned int *sp; //Allocate memory and point to the stack
-    Tid tid;                         /* hold the thread id */
+    unsigned int *stack_orig; //this points to the top of the original stack so when free, free all mem
+    int marked; // Bool(?) for assassinations.
+    struct ThrdCtlBlk *prev;
+    struct ThrdCtlBlk *next;   
 } ThrdCtlBlk;
+
+typedef struct linkedlistStruct {
+   int size; //size of linkedlist
+   ThrdCtlBlk *head; //The first element in the linkedlist
+   ThrdCtlBlk *currentTCB; //The currently running thread
+} linkedlist;
 
 /*
  * Tids between 0 and ULT_MAX_THREADS-1 may
@@ -32,42 +30,29 @@ typedef struct ThrdCtlBlk{
  * The first thread to run (before ULT_CreateThread
  * is called for the first time) must be Tid 0.
  */
-static const Tid ULT_ANY = -1;
-static const Tid ULT_SELF = -2;
-static const Tid ULT_INVALID = -3;
-static const Tid ULT_NONE = -4;
-static const Tid ULT_NOMORE = -5;
-static const Tid ULT_NOMEMORY = -6;
-static const Tid ULT_FAILED = -7;
+static const Tid ULT_ANY = -1; //Used By: Destroy and Yield
+static const Tid ULT_SELF = -2; //Used By: Destroy and Yield
+static const Tid ULT_INVALID = -3; //Returned By: Destroy and Yield
+static const Tid ULT_NONE = -4; //Returned By: Destroy and Yield
+static const Tid ULT_NOMORE = -5;  //Returned By: Create
+static const Tid ULT_NOMEMORY = -6; //Returned By: Create
 
 static inline int ULT_isOKRet(Tid ret){
   return (ret >= 0 ? 1 : 0);
 }
 
-void init();    /* initialization function */
-
+void listInit();
+Tid assassinate();
+void initStack(unsigned int *s);
+void stub(void (*fn)(void *), void *arg);
 Tid ULT_CreateThread(void (*fn)(void *), void *parg);
-Tid ULT_SWITCH(Tid wantTid);
 Tid ULT_Yield(Tid tid);
 Tid ULT_DestroyThread(Tid tid);
+void initialize_list();
 
-/* List Functions */
-struct linkedlist *init_list();
-struct ThrdCtlBlk *peek(struct linkedlist *list);
-void addNode(struct linkedlist *list, struct ThrdCtlBlk *newNode);
-struct ThrdCtlBlk *removeNode(struct linkedlist *list, int tid);
-struct ThrdCtlBlk *pop(struct linkedlist *list);
-void freeGlobals();
-void freeList(struct linkedlist *list);
-void freeTCB(ThrdCtlBlk *block);
-void freeAll();
+linkedlist *list_init(linkedlist *list);
+void addTCB(linkedlist *list, ThrdCtlBlk *TCBtoAdd);
+ThrdCtlBlk* findTCB(linkedlist *list, Tid target);
 
-/* Other Functions */
-Tid assignId();
-int threadForTid (struct linkedlist *list, int tid);
-void stubFn(void (*fn)(void *), void *arg);
-void stub(void (*fn)(void *), void *arg);
+
 #endif
-
-
-
